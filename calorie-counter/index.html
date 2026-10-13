@@ -56,7 +56,8 @@ h2 { font-family: var(--f-display); font-size: 18px; font-weight: 700; letter-sp
 .datenav button:disabled { opacity: .35; cursor: default; }
 .datelabel { min-width: 128px; text-align: center; line-height: 1.15; }
 .datelabel b { font-family: var(--f-display); font-size: 17px; display: block; }
-.datelabel span { font-size: 12px; color: var(--muted); text-transform: capitalize; }
+.datelabel span { font-size: 12px; color: var(--muted); display: block; }
+.datelabel span::first-letter { text-transform: uppercase; }
 
 /* hero */
 .hero { gap: 10px; }
@@ -162,6 +163,20 @@ label { font-size: 12.5px; color: var(--muted); display: flex; flex-direction: c
 .toast { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--on-ink); padding: 10px 16px; border-radius: 12px; font-size: 14px; font-weight: 500; z-index: 30; max-width: calc(100% - 32px); }
 .banner { background: var(--surface); border: 1px solid var(--bad); color: var(--ink); border-radius: 14px; padding: 12px 14px; font-size: 14px; }
 .foot { font-size: 12px; color: var(--muted); text-align: center; padding-block: 4px; }
+.seg.tabs { background: var(--fill); }
+.view { display: flex; flex-direction: column; gap: 14px; }
+.donutrow { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.donutrow svg { width: 140px; height: 140px; flex: none; }
+.dleg { flex: 1; min-width: 150px; display: flex; flex-direction: column; gap: 10px; }
+.dl { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: baseline; }
+.dl i { width: 10px; height: 10px; border-radius: 3px; background: var(--c); align-self: center; }
+.dl b { font-variant-numeric: tabular-nums; }
+.dl > span:last-child { white-space: nowrap; }
+.dl small { color: var(--muted); font-variant-numeric: tabular-nums; }
+.dn-num { font-family: var(--f-display); font-weight: 700; font-size: 26px; fill: var(--ink); }
+.dn-sub { font-family: var(--f-body); font-size: 11px; fill: var(--muted); }
+tr[data-act] { cursor: pointer; }
+.sec-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 @media (prefers-reduced-motion: no-preference) { .bar i { transition: width .35s ease; } }
 @media (max-width: 380px) { .big .num { font-size: 54px; } .stats { grid-template-columns: 1fr; } }
 </style>
@@ -169,38 +184,55 @@ label { font-size: 12.5px; color: var(--muted); display: flex; flex-direction: c
 <div class="wrap" id="app">
   <header class="top">
     <span class="brand">Conteo de calorías</span>
-    <div class="datenav">
+    <div class="datenav" id="datenav">
       <button id="prev" aria-label="Día anterior">‹</button>
       <div class="datelabel"><b id="dl1">Hoy</b><span id="dl2"></span></div>
       <button id="next" aria-label="Día siguiente">›</button>
     </div>
   </header>
 
+  <nav class="seg tabs" id="viewSeg" aria-label="Vista">
+    <button type="button" data-view="hoy" aria-pressed="true">Resumen del día</button>
+    <button type="button" data-view="hist" aria-pressed="false">Historial</button>
+  </nav>
+
   <div id="banner"></div>
-  <section class="card hero" id="hero" aria-live="polite"></section>
-  <section class="card" aria-label="Macronutrientes">
-    <div class="eyebrow">Macros del día</div>
-    <div class="macros" id="macros"></div>
-  </section>
-  <section class="card" aria-label="Comidas del día"><div id="meals"></div></section>
 
-  <section class="card" aria-label="Últimos 14 días">
-    <h2>Últimos 14 días</h2>
-    <div class="legend"><span><i class="sw"></i>Dentro de la meta</span><span><i class="sw bad"></i>Sobre la meta</span><span><i class="sw dash"></i>Meta diaria</span></div>
-    <div id="trend"></div>
-    <div class="readout" id="readout" aria-live="polite"></div>
-    <div class="stats" id="tstats"></div>
-    <details><summary>Ver como tabla</summary><div class="tbl" id="ttable"></div></details>
-  </section>
+  <div class="view" id="viewHoy">
+    <section class="card hero" id="hero" aria-live="polite"></section>
+    <section class="card" aria-label="Macronutrientes">
+      <div class="eyebrow">Macros del día</div>
+      <div class="donutrow"><div id="donut"></div><div class="dleg" id="dleg"></div></div>
+      <div class="macros" id="macros"></div>
+    </section>
+    <section class="card" aria-label="Comidas del día"><div id="meals"></div></section>
+  </div>
 
-  <section class="card" aria-label="Peso">
-    <h2>Peso</h2>
-    <div id="wdyn"></div>
-    <form class="wform" id="wform">
-      <input id="wkg" type="number" inputmode="decimal" step="0.1" min="30" max="250" placeholder="Peso de hoy (kg)" aria-label="Peso de hoy en kilos" required>
-      <button class="btn primary" type="submit">Registrar</button>
-    </form>
-  </section>
+  <div class="view" id="viewHist" hidden>
+    <section class="card" aria-label="Historial de calorías">
+      <h2 id="trendTitle">Últimos 14 días</h2>
+      <div class="seg" id="rangeSeg" aria-label="Rango de días">
+        <button type="button" data-range="7" aria-pressed="false">7 días</button>
+        <button type="button" data-range="14" aria-pressed="true">14 días</button>
+        <button type="button" data-range="30" aria-pressed="false">30 días</button>
+      </div>
+      <div class="legend"><span><i class="sw"></i>Dentro de la meta</span><span><i class="sw bad"></i>Sobre la meta</span><span><i class="sw dash"></i>Meta diaria</span></div>
+      <div id="trend"></div>
+      <div class="readout" id="readout" aria-live="polite"></div>
+      <div class="stats" id="tstats"></div>
+      <div class="eyebrow">Días registrados</div>
+      <div class="tbl" id="ttable"></div>
+    </section>
+
+    <section class="card" aria-label="Peso">
+      <h2>Peso</h2>
+      <div id="wdyn"></div>
+      <form class="wform" id="wform">
+        <input id="wkg" type="number" inputmode="decimal" step="0.1" min="30" max="250" placeholder="Peso de hoy (kg)" aria-label="Peso de hoy en kilos" required>
+        <button class="btn primary" type="submit">Registrar</button>
+      </form>
+    </section>
+  </div>
   <p class="foot">Los valores nutricionales son aproximados. Los datos viven en tu cuenta y se actualizan solos cuando registro algo desde el chat.</p>
 </div>
 
@@ -279,7 +311,7 @@ label { font-size: 12.5px; color: var(--muted); display: flex; flex-direction: c
     cfg: Object.assign({}, DEFAULTS),
     entries: [], weights: [], foods: [],
     date: TODAY(), sel: TODAY(), open: null, confirm: null,
-    meal: guessMeal(), tab: "foods", portions: 1, q: ""
+    meal: guessMeal(), tab: "foods", portions: 1, q: "", view: "hoy", range: 14
   };
 
   /* ---------- cálculos ---------- */
@@ -315,6 +347,11 @@ label { font-size: 12.5px; color: var(--muted); display: flex; flex-direction: c
     $("dl2").textContent = fmtLong.format(parse(S.date));
     $("prev").disabled = S.date <= addDays(t, -WINDOW_DAYS);
     $("next").disabled = S.date >= t;
+    var hoy = S.view === "hoy";
+    $("viewHoy").hidden = !hoy; $("viewHist").hidden = hoy; $("datenav").hidden = !hoy;
+    document.querySelector(".dock").hidden = !hoy;
+    Array.prototype.forEach.call($("viewSeg").children, function (b) { b.setAttribute("aria-pressed", String(b.dataset.view === S.view)); });
+    Array.prototype.forEach.call($("rangeSeg").children, function (b) { b.setAttribute("aria-pressed", String(Number(b.dataset.range) === S.range)); });
   }
 
   function renderBanner() {
@@ -343,6 +380,25 @@ label { font-size: 12.5px; color: var(--muted); display: flex; flex-direction: c
       var tg = num(r[3]) || 1, p = Math.min(100, (r[2] / tg) * 100);
       return '<div class="mrow ' + r[0] + '"><span class="lbl">' + r[1] + '</span><span class="val"><b>' + G(r[2]) + '</b> / ' + G(tg) + ' g</span><div class="bar"><i style="width:' + p.toFixed(1) + '%"></i></div></div>';
     }).join("");
+
+    var pk = t.protein * 4, ck = t.carbs * 4, fk = t.fat * 9, tot = pk + ck + fk;
+    var R = 54, CIRC = 2 * Math.PI * R;
+    var dsv = '<svg viewBox="0 0 140 140" role="img" aria-label="Reparto de calorías por macronutriente"><circle cx="70" cy="70" r="' + R + '" fill="none" stroke="var(--fill)" stroke-width="20"/>';
+    if (tot > 0) {
+      var parts = [[pk, "var(--protein)"], [ck, "var(--carbs)"], [fk, "var(--fat)"]], off = 0, used = parts.filter(function (p) { return p[0] > 0; }).length;
+      parts.forEach(function (p) {
+        if (p[0] <= 0) return;
+        var L = (p[0] / tot) * CIRC, vis = Math.max(0.5, L - (used > 1 ? 3 : 0));
+        dsv += '<circle cx="70" cy="70" r="' + R + '" fill="none" stroke="' + p[1] + '" stroke-width="20" stroke-dasharray="' + vis.toFixed(2) + " " + CIRC.toFixed(2) + '" stroke-dashoffset="' + (-off).toFixed(2) + '" transform="rotate(-90 70 70)"/>';
+        off += L;
+      });
+    }
+    dsv += '<text class="dn-num" x="70" y="72" text-anchor="middle">' + K(t.kcal) + '</text><text class="dn-sub" x="70" y="88" text-anchor="middle">de ' + K(goal) + ' kcal</text></svg>';
+    $("donut").innerHTML = dsv;
+    var dl = [["p", "Proteína", t.protein, pk], ["c", "Carbos", t.carbs, ck], ["g", "Grasas", t.fat, fk]];
+    $("dleg").innerHTML = dl.map(function (r) {
+      return '<div class="dl ' + r[0] + '"><i></i><span>' + r[1] + '</span><span><b>' + G(r[2]) + ' g</b> <small>' + (tot > 0 ? Math.round((r[3] / tot) * 100) : 0) + '%</small></span></div>';
+    }).join("") + '<p class="hint">Porcentaje de las calorías que aporta cada macro.</p>';
 
     if (!list.length) {
       $("meals").innerHTML = '<div class="empty"><b>Todavía no hay comidas este día</b><span>Cuéntame en el chat qué comiste y lo registro con sus calorías y macros, o toca “Agregar comida”.</span></div>';
@@ -375,23 +431,23 @@ label { font-size: 12.5px; color: var(--muted); display: flex; flex-direction: c
   }
 
   function renderTrend(idx) {
-    var goal = num(S.cfg.kcal) || DEFAULTS.kcal, today = TODAY(), days = [];
-    for (var i = 13; i >= 0; i--) { var d = addDays(today, -i); days.push({ date: d, t: totals(idx[d] || []) }); }
+    var goal = num(S.cfg.kcal) || DEFAULTS.kcal, today = TODAY(), n = S.range, days = [];
+    for (var i = n - 1; i >= 0; i--) { var d = addDays(today, -i); days.push({ date: d, t: totals(idx[d] || []) }); }
+    $("trendTitle").textContent = "Últimos " + n + " días";
     var max = Math.max(goal * 1.18, Math.max.apply(null, days.map(function (x) { return x.t.kcal; })) * 1.06);
-    var W = 340, H = 180, ml = 6, mr = 6, top = 12, bot = 24, ph = H - top - bot, sw = (W - ml - mr) / 14, bw = Math.min(18, sw * 0.62);
+    var W = 340, H = 180, ml = 6, mr = 6, top = 12, bot = 24, ph = H - top - bot, sw = (W - ml - mr) / n, bw = Math.min(26, Math.max(4, sw * 0.62));
     var y = function (v) { return top + ph * (1 - v / max); };
-    var svg = '<svg class="chart" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Calorías de los últimos 14 días frente a la meta diaria">';
+    var svg = '<svg class="chart" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Calorías de los últimos ' + n + ' días frente a la meta diaria">';
     days.forEach(function (d, i) {
       var x0 = ml + i * sw, cx = x0 + sw / 2;
-      if (d.date === S.sel) svg += '<rect x="' + x0 + '" y="' + (top - 6) + '" width="' + sw + '" height="' + (ph + 6) + '" rx="6" fill="var(--fill)"/>';
+      if (d.date === S.sel) svg += '<rect x="' + x0 + '" y="' + (top - 6) + '" width="' + sw + '" height="' + (ph + 6) + '" rx="4" fill="var(--fill)"/>';
       if (d.t.n) {
         var h = Math.max(2, y(0) - y(d.t.kcal));
-        svg += '<path d="' + topRound(cx - bw / 2, y(0) - h, bw, h, 4) + '" fill="' + (d.t.kcal > goal ? "var(--bad)" : "var(--ink)") + '"/>';
+        svg += '<path d="' + topRound(cx - bw / 2, y(0) - h, bw, h, Math.min(4, bw / 2)) + '" fill="' + (d.t.kcal > goal ? "var(--bad)" : "var(--ink)") + '"/>';
       } else {
-        svg += '<rect x="' + (cx - 3) + '" y="' + (y(0) - 2) + '" width="6" height="2" rx="1" fill="var(--line)"/>';
+        svg += '<rect x="' + (cx - Math.min(3, bw / 2)) + '" y="' + (y(0) - 2) + '" width="' + Math.min(6, bw) + '" height="2" rx="1" fill="var(--line)"/>';
       }
-      var dn = parse(d.date).getDate();
-      svg += '<text x="' + cx + '" y="' + (H - 7) + '" text-anchor="middle" class="' + (d.date === today ? "strong" : "") + '">' + dn + '</text>';
+      if (n <= 14 || (n - 1 - i) % 3 === 0) svg += '<text x="' + cx + '" y="' + (H - 7) + '" text-anchor="middle" class="' + (d.date === today ? "strong" : "") + '">' + parse(d.date).getDate() + '</text>';
     });
     svg += '<line x1="' + ml + '" x2="' + (W - mr) + '" y1="' + y(0) + '" y2="' + y(0) + '" stroke="var(--line)"/>';
     svg += '<line x1="' + ml + '" x2="' + (W - mr) + '" y1="' + y(goal) + '" y2="' + y(goal) + '" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="5 4"/>';
@@ -409,18 +465,18 @@ label { font-size: 12.5px; color: var(--muted); display: flex; flex-direction: c
       $("readout").innerHTML = '<b>' + fmtShort.format(parse(s.date)) + '</b> · sin registros';
     }
 
-    var prev7 = days.slice(6, 13).filter(function (d) { return d.t.n; });
-    var avg = prev7.length ? prev7.reduce(function (a, d) { return a + d.t.kcal; }, 0) / prev7.length : null;
-    var within = prev7.filter(function (d) { return d.t.kcal <= goal; }).length;
-    var avgP = prev7.length ? prev7.reduce(function (a, d) { return a + d.t.protein; }, 0) / prev7.length : null;
+    var done = days.filter(function (d) { return d.t.n && d.date !== today; });
+    var avg = done.length ? done.reduce(function (a, d) { return a + d.t.kcal; }, 0) / done.length : null;
+    var within = done.filter(function (d) { return d.t.kcal <= goal; }).length;
+    var avgP = done.length ? done.reduce(function (a, d) { return a + d.t.protein; }, 0) / done.length : null;
     $("tstats").innerHTML =
-      '<div class="stat"><span class="k">Promedio 7 días</span><span class="v">' + (avg == null ? "—" : K(avg)) + ' <small>kcal</small></span></div>' +
-      '<div class="stat"><span class="k">Días en la meta</span><span class="v">' + within + ' <small>de ' + prev7.length + '</small></span></div>' +
+      '<div class="stat"><span class="k">Promedio (sin hoy)</span><span class="v">' + (avg == null ? "—" : K(avg)) + ' <small>kcal</small></span></div>' +
+      '<div class="stat"><span class="k">Días en la meta</span><span class="v">' + within + ' <small>de ' + done.length + '</small></span></div>' +
       '<div class="stat"><span class="k">Proteína media</span><span class="v">' + (avgP == null ? "—" : G(avgP)) + ' <small>g</small></span></div>';
 
     var logged = days.filter(function (d) { return d.t.n; }).reverse();
     $("ttable").innerHTML = logged.length ? '<table><thead><tr><th>Día</th><th>kcal</th><th>P</th><th>C</th><th>G</th></tr></thead><tbody>' +
-      logged.map(function (d) { return '<tr><td>' + fmtShort.format(parse(d.date)) + '</td><td>' + K(d.t.kcal) + '</td><td>' + G(d.t.protein) + '</td><td>' + G(d.t.carbs) + '</td><td>' + G(d.t.fat) + '</td></tr>'; }).join("") + '</tbody></table>' : '<p class="hint">Aún no hay días registrados.</p>';
+      logged.map(function (d) { return '<tr data-act="goday" data-date="' + d.date + '"><td>' + fmtShort.format(parse(d.date)) + '</td><td>' + K(d.t.kcal) + '</td><td>' + G(d.t.protein) + '</td><td>' + G(d.t.carbs) + '</td><td>' + G(d.t.fat) + '</td></tr>'; }).join("") + '</tbody></table><p class="hint" style="margin-top:8px">Toca un día para ver su detalle.</p>' : '<p class="hint">Aún no hay días registrados en este rango.</p>';
   }
 
   function renderWeight() {
@@ -534,6 +590,7 @@ label { font-size: 12.5px; color: var(--muted); display: flex; flex-direction: c
       if (!needDb()) return;
       S.db.doc("entries/" + id).delete().then(function () { S.confirm = null; S.open = null; toast("Eliminado"); }, function () { toast("No se pudo eliminar"); });
     }
+    else if (act === "goday") { S.date = el.dataset.date; S.view = "hoy"; S.open = null; window.scrollTo(0, 0); sched(); }
     else if (act === "sel") { S.sel = el.dataset.date; sched(); }
     else if (act === "addfood") {
       var f = S.foods.filter(function (x) { return x.id === id; })[0]; if (!f) return;
@@ -544,6 +601,8 @@ label { font-size: 12.5px; color: var(--muted); display: flex; flex-direction: c
   $("prev").addEventListener("click", function () { S.date = addDays(S.date, -1); S.open = null; sched(); });
   $("next").addEventListener("click", function () { if (S.date < TODAY()) { S.date = addDays(S.date, 1); S.open = null; sched(); } });
   $("openAdd").addEventListener("click", openSheet);
+  $("viewSeg").addEventListener("click", function (e) { var b = e.target.closest("[data-view]"); if (b) { S.view = b.dataset.view; window.scrollTo(0, 0); sched(); } });
+  $("rangeSeg").addEventListener("click", function (e) { var b = e.target.closest("[data-range]"); if (b) { S.range = Number(b.dataset.range); sched(); } });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !$("sheet").hidden) closeSheet(); });
   $("mealSeg").addEventListener("click", function (e) { var b = e.target.closest("[data-meal]"); if (b) { S.meal = b.dataset.meal; syncSheet(); } });
   $("tabSeg").addEventListener("click", function (e) { var b = e.target.closest("[data-tab]"); if (b) { S.tab = b.dataset.tab; syncSheet(); } });
