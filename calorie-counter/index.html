@@ -584,6 +584,11 @@ label { font-size: 12.5px; color: var(--muted); display: flex; flex-direction: c
   (window.claude && window.claude.use ? window.claude.use("db") : Promise.resolve(null)).then(function (db) {
     if (!db) { S.err = "nodb"; sched(); return; }
     S.db = db;
+    try {
+      var tz = (Intl.DateTimeFormat().resolvedOptions() || {}).timeZone || "";
+      var dref = db.doc("config/device");
+      dref.get().then(function (s) { var d = s.exists ? s.data() : {}, t = TODAY(); if (d.today !== t || d.tz !== tz) return dref.set({ today: t, tz: tz }); }).catch(function () {});
+    } catch (e) {}
     db.collection("entries").where("date", ">=", addDays(TODAY(), -WINDOW_DAYS)).onSnapshot(function (s) { S.entries = docs(s); sched(); }, fail);
     db.collection("weights").orderBy("date", "asc").limit(500).onSnapshot(function (s) { S.weights = docs(s).map(function (w) { return { id: w.id, date: w.date || w.id, kg: num(w.kg) }; }).filter(function (w) { return w.kg > 0; }); sched(); }, fail);
     db.collection("foods").orderBy("name", "asc").limit(400).onSnapshot(function (s) { S.foods = docs(s); sched(); }, fail);
