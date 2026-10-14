@@ -176,6 +176,12 @@ label { font-size: 12.5px; color: var(--muted); display: flex; flex-direction: c
 .dn-num { font-family: var(--f-display); font-weight: 700; font-size: 26px; fill: var(--ink); }
 .dn-sub { font-family: var(--f-body); font-size: 11px; fill: var(--muted); }
 tr[data-act] { cursor: pointer; }
+.bal { background: var(--bg); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.bal-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bal-big { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.bal-big .num { font-family: var(--f-display); font-weight: 700; font-size: 40px; line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.bal.ok .num { color: var(--ok); } .bal.warn .num { color: var(--warn); } .bal.bad .num { color: var(--bad); }
+.bal-big .unit { font-size: 14px; color: var(--ink2); }
 .sec-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 @media (prefers-reduced-motion: no-preference) { .bar i { transition: width .35s ease; } }
 @media (max-width: 380px) { .big .num { font-size: 54px; } .stats { grid-template-columns: 1fr; } }
@@ -216,6 +222,7 @@ tr[data-act] { cursor: pointer; }
         <button type="button" data-range="14" aria-pressed="true">14 días</button>
         <button type="button" data-range="30" aria-pressed="false">30 días</button>
       </div>
+      <div id="balance" aria-live="polite"></div>
       <div class="legend"><span><i class="sw"></i>Dentro de la meta</span><span><i class="sw bad"></i>Sobre la meta</span><span><i class="sw dash"></i>Meta diaria</span></div>
       <div id="trend"></div>
       <div class="readout" id="readout" aria-live="polite"></div>
@@ -473,6 +480,23 @@ tr[data-act] { cursor: pointer; }
       '<div class="stat"><span class="k">Promedio (sin hoy)</span><span class="v">' + (avg == null ? "—" : K(avg)) + ' <small>kcal</small></span></div>' +
       '<div class="stat"><span class="k">Días en la meta</span><span class="v">' + within + ' <small>de ' + done.length + '</small></span></div>' +
       '<div class="stat"><span class="k">Proteína media</span><span class="v">' + (avgP == null ? "—" : G(avgP)) + ' <small>g</small></span></div>';
+
+    var nd = done.length, over = nd - within;
+    var net = done.reduce(function (a, d) { return a + (goal - d.t.kcal); }, 0);
+    var avgIn = nd ? goal - net / nd : 0;
+    if (!nd) {
+      $("balance").innerHTML = '<div class="bal"><div class="bal-top"><span class="pill">Sin días completos</span></div><p class="hint">Cuando tengas días registrados en este rango, aquí verás cuántas calorías llevas a favor o en contra de tu meta. Hoy no se cuenta hasta que termine el día.</p></div>';
+    } else {
+      var tooLow = avgIn < 1200;
+      var cls = tooLow ? "warn" : net >= 0 ? "ok" : (-net <= goal * 0.05 * nd ? "warn" : "bad");
+      var label = tooLow ? "! Muy por debajo" : net >= 0 ? "✓ Buen período" : (cls === "warn" ? "! Casi en meta" : "▲ Sobre la meta");
+      var avgDiff = Math.round(Math.abs(net / nd));
+      var note = tooLow ? " Ojo: comer tan poco puede costarte músculo y energía; vale más cumplir tu meta que quedarte muy abajo." : "";
+      $("balance").innerHTML = '<div class="bal ' + cls + '">' +
+        '<div class="bal-top"><span class="pill ' + cls + '">' + label + '</span><span class="hint">' + nd + ' de ' + (n - 1) + ' días con registro (sin contar hoy)</span></div>' +
+        '<div class="bal-big"><span class="num">' + K(Math.abs(net)) + '</span><span class="unit">kcal ' + (net >= 0 ? "a favor de tu meta" : "en contra de tu meta") + '</span></div>' +
+        '<p class="hint">Promedio: ' + K(avgIn) + ' kcal al día, ' + K(avgDiff) + ' ' + (net >= 0 ? "bajo" : "sobre") + ' tu meta. ' + within + (within === 1 ? ' día' : ' días') + ' dentro de la meta y ' + over + (over === 1 ? ' día' : ' días') + ' sobre.' + note + ' Los días sin registro no se cuentan.</p></div>';
+    }
 
     var logged = days.filter(function (d) { return d.t.n; }).reverse();
     $("ttable").innerHTML = logged.length ? '<table><thead><tr><th>Día</th><th>kcal</th><th>P</th><th>C</th><th>G</th></tr></thead><tbody>' +
