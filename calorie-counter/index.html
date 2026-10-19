@@ -216,7 +216,7 @@ tr[data-act] { cursor: pointer; }
 
   <div class="view" id="viewHist" hidden>
     <section class="card" aria-label="Historial de calorías">
-      <h2 id="trendTitle">Últimos 14 días</h2>
+      <h2 id="trendTitle">Últimos 14 días completos</h2>
       <div class="seg" id="rangeSeg" aria-label="Rango de días">
         <button type="button" data-range="7" aria-pressed="false">7 días</button>
         <button type="button" data-range="14" aria-pressed="true">14 días</button>
@@ -440,8 +440,8 @@ tr[data-act] { cursor: pointer; }
 
   function renderTrend(idx) {
     var goal = num(S.cfg.kcal) || DEFAULTS.kcal, today = TODAY(), n = S.range, days = [];
-    for (var i = n - 1; i >= 0; i--) { var d = addDays(today, -i); days.push({ date: d, t: totals(idx[d] || []) }); }
-    $("trendTitle").textContent = "Últimos " + n + " días";
+    for (var i = n; i >= 1; i--) { var d = addDays(today, -i); days.push({ date: d, t: totals(idx[d] || []) }); }
+    $("trendTitle").textContent = "Últimos " + n + " días completos";
     var max = Math.max(goal * 1.18, Math.max.apply(null, days.map(function (x) { return x.t.kcal; })) * 1.06);
     var W = 340, H = 180, ml = 6, mr = 6, top = 12, bot = 24, ph = H - top - bot, sw = (W - ml - mr) / n, bw = Math.min(26, Math.max(4, sw * 0.62));
     var y = function (v) { return top + ph * (1 - v / max); };
@@ -473,7 +473,7 @@ tr[data-act] { cursor: pointer; }
       $("readout").innerHTML = '<b>' + fmtShort.format(parse(s.date)) + '</b> · sin registros';
     }
 
-    var done = days.filter(function (d) { return d.t.n && d.date !== today; });
+    var done = days.filter(function (d) { return d.t.n; });
     var avg = done.length ? done.reduce(function (a, d) { return a + d.t.kcal; }, 0) / done.length : null;
     var within = done.filter(function (d) { return d.t.kcal <= goal; }).length;
     var avgP = done.length ? done.reduce(function (a, d) { return a + d.t.protein; }, 0) / done.length : null;
@@ -494,7 +494,7 @@ tr[data-act] { cursor: pointer; }
       var avgDiff = Math.round(Math.abs(net / nd));
       var note = tooLow ? " Ojo: comer tan poco puede costarte músculo y energía; vale más cumplir tu meta que quedarte muy abajo." : "";
       $("balance").innerHTML = '<div class="bal ' + cls + '">' +
-        '<div class="bal-top"><span class="pill ' + cls + '">' + label + '</span><span class="hint">' + nd + ' de ' + (n - 1) + ' días con registro (sin contar hoy)</span></div>' +
+        '<div class="bal-top"><span class="pill ' + cls + '">' + label + '</span><span class="hint">' + nd + ' de ' + n + ' días con registro (hasta ayer)</span></div>' +
         '<div class="bal-big"><span class="num">' + K(Math.abs(net)) + '</span><span class="unit">kcal ' + (net >= 0 ? "a favor de tu meta" : "en contra de tu meta") + '</span></div>' +
         '<p class="hint">Promedio: ' + K(avgIn) + ' kcal al día, ' + K(avgDiff) + ' ' + (net >= 0 ? "bajo" : "sobre") + ' tu meta. ' + within + (within === 1 ? ' día' : ' días') + ' dentro de la meta y ' + over + (over === 1 ? ' día' : ' días') + ' sobre.' + note + ' Hoy no se cuenta hasta que termine el día. Los días sin registro tampoco.</p></div>';
     }
