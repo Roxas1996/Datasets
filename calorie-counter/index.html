@@ -235,7 +235,7 @@ tr[data-act] { cursor: pointer; }
       <h2>Peso</h2>
       <div id="wdyn"></div>
       <form class="wform" id="wform">
-        <input id="wkg" type="number" inputmode="decimal" step="0.1" min="30" max="250" placeholder="Peso de hoy (kg)" aria-label="Peso de hoy en kilos" required>
+        <input id="wkg" type="text" inputmode="decimal" pattern="[0-9]+([.,][0-9]+)?" autocomplete="off" placeholder="Peso de hoy (kg), ej: 67,3" aria-label="Peso de hoy en kilos" required>
         <button class="btn primary" type="submit">Registrar</button>
       </form>
     </section>
@@ -270,11 +270,11 @@ tr[data-act] { cursor: pointer; }
       <label>Alimento<input id="mName" type="text" placeholder="Ej: Pan integral con palta" required></label>
       <label>Cantidad<input id="mQty" type="text" placeholder="Ej: 2 rebanadas"></label>
       <div class="grid2">
-        <label>Calorías (kcal)<input id="mKcal" type="number" inputmode="decimal" step="any" min="0" required></label>
-        <label>Proteína (g)<input id="mP" type="number" inputmode="decimal" step="any" min="0"></label>
-        <label>Carbohidratos (g)<input id="mC" type="number" inputmode="decimal" step="any" min="0"></label>
-        <label>Grasas (g)<input id="mG" type="number" inputmode="decimal" step="any" min="0"></label>
-        <label>Fibra (g)<input id="mF" type="number" inputmode="decimal" step="any" min="0"></label>
+        <label>Calorías (kcal)<input id="mKcal" type="text" inputmode="decimal" pattern="[0-9]+([.,][0-9]+)?" autocomplete="off" required></label>
+        <label>Proteína (g)<input id="mP" type="text" inputmode="decimal" pattern="[0-9]+([.,][0-9]+)?" autocomplete="off"></label>
+        <label>Carbohidratos (g)<input id="mC" type="text" inputmode="decimal" pattern="[0-9]+([.,][0-9]+)?" autocomplete="off"></label>
+        <label>Grasas (g)<input id="mG" type="text" inputmode="decimal" pattern="[0-9]+([.,][0-9]+)?" autocomplete="off"></label>
+        <label>Fibra (g)<input id="mF" type="text" inputmode="decimal" pattern="[0-9]+([.,][0-9]+)?" autocomplete="off"></label>
       </div>
       <label class="check"><input id="mSave" type="checkbox" checked>Guardar en Mis alimentos</label>
       <button class="btn primary" type="submit">Agregar</button>
@@ -298,6 +298,7 @@ tr[data-act] { cursor: pointer; }
   var TODAY = function () { return ymd(new Date()); };
   var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); };
   var num = function (v) { var n = Number(v); return isFinite(n) ? n : 0; };
+  var dec = function (v) { return num(String(v == null ? "" : v).trim().replace(",", ".")); };
   var nf = new Intl.NumberFormat("es-CL", { maximumFractionDigits: 0 });
   var nf1 = new Intl.NumberFormat("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   var nfp = new Intl.NumberFormat("es-CL", { maximumFractionDigits: 1 });
@@ -636,9 +637,9 @@ tr[data-act] { cursor: pointer; }
 
   $("manualForm").addEventListener("submit", function (e) {
     e.preventDefault();
-    var name = $("mName").value.trim(), kcal = num($("mKcal").value);
+    var name = $("mName").value.trim(), kcal = dec($("mKcal").value);
     if (!name) { toast("Escribe el nombre del alimento"); return; }
-    var item = { name: name, qty: $("mQty").value.trim(), kcal: kcal, protein: num($("mP").value), carbs: num($("mC").value), fat: num($("mG").value), fiber: num($("mF").value), src: "Ingreso manual" };
+    var item = { name: name, qty: $("mQty").value.trim(), kcal: kcal, protein: dec($("mP").value), carbs: dec($("mC").value), fat: dec($("mG").value), fiber: dec($("mF").value), src: "Ingreso manual" };
     addEntry(item).then(function (ok) {
       if (!ok) return;
       if ($("mSave").checked) {
@@ -652,7 +653,7 @@ tr[data-act] { cursor: pointer; }
 
   $("wform").addEventListener("submit", function (e) {
     e.preventDefault();
-    var kg = num($("wkg").value);
+    var kg = dec($("wkg").value);
     if (!(kg >= 30 && kg <= 250)) { toast("Escribe un peso válido en kilos"); return; }
     if (!needDb()) return;
     var d = TODAY();
