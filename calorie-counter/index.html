@@ -182,6 +182,7 @@ tr[data-act] { cursor: pointer; }
 .bal-big .num { font-family: var(--f-display); font-weight: 700; font-size: 40px; line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 .bal.ok .num { color: var(--ok); } .bal.warn .num { color: var(--warn); } .bal.bad .num { color: var(--bad); }
 .bal-big .unit { font-size: 14px; color: var(--ink2); }
+.hint .ghost { min-height: 32px; padding: 0 6px; color: var(--ink); text-decoration: underline; font-size: 12.5px; }
 .sec-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 @media (prefers-reduced-motion: no-preference) { .bar i { transition: width .35s ease; } }
 @media (max-width: 380px) { .big .num { font-size: 54px; } .stats { grid-template-columns: 1fr; } }
@@ -263,6 +264,7 @@ tr[data-act] { cursor: pointer; }
     <div id="tabFoods" style="display:flex;flex-direction:column;gap:10px">
       <div class="stepper"><span>Porciones</span><div class="ctl"><button type="button" id="pm" aria-label="Menos">−</button><output id="pv">1 porción</output><button type="button" id="pp" aria-label="Más">＋</button></div></div>
       <input id="fsearch" type="search" placeholder="Buscar en mis alimentos" aria-label="Buscar alimento">
+      <div class="hint" id="foodnote"></div>
       <div class="foodlist" id="foodlist"></div>
     </div>
 
@@ -319,7 +321,7 @@ tr[data-act] { cursor: pointer; }
     cfg: Object.assign({}, DEFAULTS),
     entries: [], weights: [], foods: [],
     date: TODAY(), sel: TODAY(), open: null, confirm: null,
-    meal: guessMeal(), tab: "foods", portions: 1, q: "", view: "hoy", range: 14
+    meal: guessMeal(), tab: "foods", portions: 1, q: "", view: "hoy", range: 14, showAll: false
   };
 
   /* ---------- cálculos ---------- */
@@ -560,14 +562,24 @@ tr[data-act] { cursor: pointer; }
   }
 
   function renderFoods() {
-    var q = S.q.trim().toLowerCase();
-    var foods = S.foods.filter(function (f) { return !q || String(f.name).toLowerCase().indexOf(q) >= 0; });
-    var m = S.portions;
+    var q = S.q.trim().toLowerCase(), m = S.portions;
+    var label = MEALS.filter(function (x) { return x[0] === S.meal; })[0][1];
+    var filterOn = !q && !S.showAll;
+    var pool = filterOn ? S.foods.filter(function (f) { return !f.meals || f.meals.indexOf(S.meal) >= 0; }) : S.foods;
+    var foods = pool.filter(function (f) { return !q || String(f.name).toLowerCase().indexOf(q) >= 0; });
+    var note;
+    if (q) note = "Buscando en todos tus alimentos.";
+    else if (S.showAll) note = 'Mostrando todos tus alimentos. <button type="button" class="ghost" data-act="toggleall">Solo los de ' + label + '</button>';
+    else note = 'Habituales en ' + label + '. Escribe para buscar en todos. <button type="button" class="ghost" data-act="toggleall">Ver todos</button>';
+    $("foodnote").innerHTML = note;
     if (!S.foods.length) {
       $("foodlist").innerHTML = '<div class="empty" style="padding:8px 0"><b>Aún no hay alimentos guardados</b><span>Los que me cuentes en el chat quedan aquí para repetirlos con un toque.</span></div>';
       return;
     }
-    if (!foods.length) { $("foodlist").innerHTML = '<p class="hint" style="padding:8px 0">Nada coincide con la búsqueda.</p>'; return; }
+    if (!foods.length) {
+      $("foodlist").innerHTML = '<p class="hint" style="padding:8px 0">' + (filterOn ? "Aún no hay alimentos habituales en " + label + ". Busca por nombre o toca “Ver todos”." : "Nada coincide con la búsqueda.") + "</p>";
+      return;
+    }
     $("foodlist").innerHTML = foods.map(function (f) {
       return '<div class="food"><span class="nm">' + esc(f.name) + '</span><span class="kc">' + K(num(f.kcal) * m) + '</span>' +
         '<button class="add" type="button" data-act="addfood" data-id="' + esc(f.id) + '" aria-label="Agregar ' + esc(f.name) + '">＋</button>' +
@@ -601,7 +613,7 @@ tr[data-act] { cursor: pointer; }
     $("tabFoods").style.display = S.tab === "foods" ? "flex" : "none";
     $("manualForm").style.display = S.tab === "manual" ? "flex" : "none";
   }
-  function openSheet() { S.meal = guessMeal(); syncSheet(); $("sheet").hidden = false; sched(); }
+  function openSheet() { S.meal = guessMeal(); S.showAll = false; syncSheet(); renderFoods(); $("sheet").hidden = false; sched(); }
   function closeSheet() { $("sheet").hidden = true; }
 
   document.addEventListener("click", function (ev) {
@@ -616,11 +628,15 @@ tr[data-act] { cursor: pointer; }
       S.db.doc("entries/" + id).delete().then(function () { S.confirm = null; S.open = null; toast("Eliminado"); }, function () { toast("No se pudo eliminar"); });
     }
     else if (act === "goday") { S.date = el.dataset.date; S.view = "hoy"; S.open = null; window.scrollTo(0, 0); sched(); }
+    else if (act === "toggleall") { S.showAll = !S.showAll; renderFoods(); }
     else if (act === "sel") { S.sel = el.dataset.date; sched(); }
     else if (act === "addfood") {
       var f = S.foods.filter(function (x) { return x.id === id; })[0]; if (!f) return;
       var m = S.portions;
-      addEntry({ name: f.name, qty: m === 1 ? f.qty : nfp.format(m) + " × " + (f.qty || "porción"), kcal: num(f.kcal) * m, protein: num(f.protein) * m, carbs: num(f.carbs) * m, fat: num(f.fat) * m, fiber: num(f.fiber) * m, src: f.src });
+      var mealNow = S.meal;
+      addEntry({ name: f.name, qty: m === 1 ? f.qty : nfp.format(m) + " × " + (f.qty || "porción"), kcal: num(f.kcal) * m, protein: num(f.protein) * m, carbs: num(f.carbs) * m, fat: num(f.fat) * m, fiber: num(f.fiber) * m, src: f.src }).then(function (ok) {
+        if (ok && S.db && (!f.meals || f.meals.indexOf(mealNow) < 0)) S.db.doc("foods/" + f.id).update({ meals: (f.meals || []).concat([mealNow]) }).catch(function () {});
+      });
     }
   });
   $("prev").addEventListener("click", function () { S.date = addDays(S.date, -1); S.open = null; sched(); });
@@ -629,7 +645,7 @@ tr[data-act] { cursor: pointer; }
   $("viewSeg").addEventListener("click", function (e) { var b = e.target.closest("[data-view]"); if (b) { S.view = b.dataset.view; window.scrollTo(0, 0); sched(); } });
   $("rangeSeg").addEventListener("click", function (e) { var b = e.target.closest("[data-range]"); if (b) { S.range = Number(b.dataset.range); sched(); } });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !$("sheet").hidden) closeSheet(); });
-  $("mealSeg").addEventListener("click", function (e) { var b = e.target.closest("[data-meal]"); if (b) { S.meal = b.dataset.meal; syncSheet(); } });
+  $("mealSeg").addEventListener("click", function (e) { var b = e.target.closest("[data-meal]"); if (b) { S.meal = b.dataset.meal; syncSheet(); renderFoods(); } });
   $("tabSeg").addEventListener("click", function (e) { var b = e.target.closest("[data-tab]"); if (b) { S.tab = b.dataset.tab; syncSheet(); } });
   $("pm").addEventListener("click", function () { setPortions(S.portions - 0.5); });
   $("pp").addEventListener("click", function () { setPortions(S.portions + 0.5); });
@@ -645,7 +661,7 @@ tr[data-act] { cursor: pointer; }
       if ($("mSave").checked) {
         var key = (item.name + "|" + item.qty).toLowerCase();
         var dup = S.foods.some(function (f) { return (f.name + "|" + (f.qty || "")).toLowerCase() === key; });
-        if (!dup) S.db.collection("foods").add({ name: item.name, qty: item.qty, kcal: Math.round(item.kcal), protein: r1(item.protein), carbs: r1(item.carbs), fat: r1(item.fat), fiber: r1(item.fiber), src: item.src }).catch(function () {});
+        if (!dup) S.db.collection("foods").add({ name: item.name, qty: item.qty, kcal: Math.round(item.kcal), protein: r1(item.protein), carbs: r1(item.carbs), fat: r1(item.fat), fiber: r1(item.fiber), src: item.src, meals: [S.meal] }).catch(function () {});
       }
       $("manualForm").reset(); $("mSave").checked = true; closeSheet();
     });
