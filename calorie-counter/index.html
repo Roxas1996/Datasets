@@ -118,6 +118,8 @@ h2 { font-family: var(--f-display); font-size: 18px; font-weight: 700; letter-sp
 .chart { width: 100%; height: auto; display: block; overflow: visible; }
 .chart text { font-family: var(--f-body); fill: var(--muted); font-size: 10.5px; }
 .chart .strong { fill: var(--ink); font-weight: 700; }
+.chart .pill rect { fill: #3c484e; }
+.chart .pill text { fill: #fff; font-weight: 700; stroke: none; }
 .chart .halo { stroke: var(--surface); stroke-width: 3px; paint-order: stroke; }
 .readout { font-size: 13.5px; color: var(--ink2); min-height: 38px; }
 .readout b { color: var(--ink); font-variant-numeric: tabular-nums; }
@@ -258,8 +260,8 @@ tr[data-act] { cursor: pointer; }
     <div class="seg" id="mealSeg" aria-label="Momento del día">
       <button type="button" data-meal="desayuno" aria-pressed="false">Desayuno</button>
       <button type="button" data-meal="almuerzo" aria-pressed="false">Almuerzo</button>
-      <button type="button" data-meal="snack" aria-pressed="false">Snack</button>
       <button type="button" data-meal="cena" aria-pressed="false">Cena</button>
+      <button type="button" data-meal="snack" aria-pressed="false">Snack</button>
     </div>
     <div class="seg" id="tabSeg" aria-label="Forma de agregar">
       <button type="button" data-tab="foods" aria-pressed="true">Mis alimentos</button>
@@ -295,7 +297,7 @@ tr[data-act] { cursor: pointer; }
 (function () {
   "use strict";
   var DEFAULTS = { kcal: 1650, protein: 120, carbs: 180, fat: 50, fiber: 25, startWeight: 67.5, goalWeight: 63, weeklyRate: 0.5 };
-  var MEALS = [["desayuno", "Desayuno"], ["almuerzo", "Almuerzo"], ["snack", "Snack"], ["cena", "Cena"]];
+  var MEALS = [["desayuno", "Desayuno"], ["almuerzo", "Almuerzo"], ["cena", "Cena"], ["snack", "Snack"]];
   var WINDOW_DAYS = 44;
 
   var pad = function (n) { return String(n).padStart(2, "0"); };
@@ -446,6 +448,16 @@ tr[data-act] { cursor: pointer; }
     return "M" + x + "," + (y + h) + "V" + (y + r) + "Q" + x + "," + y + " " + (x + r) + "," + y + "H" + (x + w - r) + "Q" + (x + w) + "," + y + " " + (x + w) + "," + (y + r) + "V" + (y + h) + "Z";
   }
 
+  /* etiqueta de valor: texto blanco dentro de un óvalo gris oscuro, sin salirse del gráfico */
+  function pillBox(cx, txt, W, minX) {
+    var w = Math.round(txt.length * 6.4 + 16);
+    return { w: w, x: Math.max(minX || 2, Math.min(W - 2 - w, cx - w / 2)) };
+  }
+  function pill(cx, base, txt, W, minX) {
+    var b = pillBox(cx, txt, W, minX), w = b.w, h = 18, x = b.x;
+    return '<g class="pill" pointer-events="none"><rect x="' + x.toFixed(1) + '" y="' + (base - 13).toFixed(1) + '" width="' + w + '" height="' + h + '" rx="' + h / 2 + '"/><text x="' + (x + w / 2).toFixed(1) + '" y="' + base.toFixed(1) + '" text-anchor="middle">' + txt + '</text></g>';
+  }
+
   function renderTrend(idx) {
     var goal = num(S.cfg.kcal) || DEFAULTS.kcal, today = TODAY(), n = S.range, days = [];
     for (var i = n; i >= 1; i--) { var d = addDays(today, -i); days.push({ date: d, t: totals(idx[d] || []) }); }
@@ -470,8 +482,7 @@ tr[data-act] { cursor: pointer; }
     svg += '<text class="halo" x="' + (W - mr) + '" y="' + (y(goal) - 5) + '" text-anchor="end">Meta ' + K(goal) + '</text>';
     days.forEach(function (d, i) {
       if (d.date !== S.sel || !d.t.n) return;
-      var lx = Math.max(ml + 16, Math.min(W - mr - 16, ml + i * sw + sw / 2)), ly = Math.max(top + 4, y(d.t.kcal) - 6);
-      svg += '<text class="halo strong" x="' + lx + '" y="' + ly + '" text-anchor="middle">' + K(d.t.kcal) + '</text>';
+      svg += pill(ml + i * sw + sw / 2, Math.max(15, y(d.t.kcal) - 9), K(d.t.kcal), W);
     });
     days.forEach(function (d, i) {
       svg += '<rect x="' + (ml + i * sw) + '" y="0" width="' + sw + '" height="' + H + '" fill="transparent" data-act="sel" data-date="' + d.date + '" role="button" aria-label="' + fmtShort.format(parse(d.date)) + ': ' + (d.t.n ? K(d.t.kcal) + ' kcal' : 'sin registros') + '" aria-pressed="' + (d.date === S.sel) + '" style="cursor:pointer"/>';
@@ -562,11 +573,13 @@ tr[data-act] { cursor: pointer; }
       if (on) svg += '<circle cx="' + X(w.date).toFixed(1) + '" cy="' + Y(w.kg).toFixed(1) + '" r="9" fill="var(--fill)"/>';
       svg += '<circle cx="' + X(w.date).toFixed(1) + '" cy="' + Y(w.kg).toFixed(1) + '" r="' + (on || last ? 5 : 3.5) + '" fill="var(--ink)" stroke="var(--surface)" stroke-width="2"/>';
     });
-    var pt = selw || latest, lx = X(pt.date), ly = Y(pt.kg) - 12;
-    var anchor = lx > W - 70 ? "end" : lx < ml + 50 && !selw ? "start" : lx < ml + 40 ? "start" : "middle";
-    var lxt = anchor === "end" ? lx + 4 : anchor === "start" ? lx - 4 : lx;
-    if (ly < 10) ly = Y(pt.kg) + 20;
-    svg += '<text class="halo strong" x="' + lxt + '" y="' + ly + '" text-anchor="' + anchor + '">' + (selw ? fmtDM.format(parse(pt.date)) + " · " : "") + nf1.format(pt.kg) + ' kg</text>';
+    var pt = selw || latest, ptxt = (selw ? fmtDM.format(parse(pt.date)) + " · " : "") + nf1.format(pt.kg) + " kg";
+    var pb = pillBox(X(pt.date), ptxt, W, ml), ly = Y(pt.kg) - 25;
+    var clash = function (b) {
+      return ws.some(function (w) { var px = X(w.date), py = Y(w.kg); return w !== pt && px > pb.x - 6 && px < pb.x + pb.w + 6 && py > b - 19 && py < b + 11; });
+    };
+    if (ly < 15 || clash(ly)) { var below = Y(pt.kg) + 28; if (below + 5 < H - 14 && !clash(below)) ly = below; else if (ly < 15) ly = below; }
+    svg += pill(X(pt.date), ly, ptxt, W, ml);
     ws.forEach(function (w) {
       svg += '<circle cx="' + X(w.date).toFixed(1) + '" cy="' + Y(w.kg).toFixed(1) + '" r="14" fill="transparent" data-act="selw" data-date="' + w.date + '" role="button" aria-label="' + fmtDM.format(parse(w.date)) + ': ' + nf1.format(w.kg) + ' kg" aria-pressed="' + (w.date === S.selW) + '" style="cursor:pointer"/>';
     });
