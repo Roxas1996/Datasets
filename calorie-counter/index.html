@@ -97,6 +97,11 @@ h2 { font-family: var(--f-display); font-size: 18px; font-weight: 700; letter-sp
 .row .kc { grid-column: 2; grid-row: 1 / span 3; align-self: center; font-family: var(--f-display); font-weight: 700; font-size: 18px; font-variant-numeric: tabular-nums; }
 .detail { padding: 8px 0 12px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--ink2); }
 .detail .acts { display: flex; gap: 8px; }
+.qedit { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.qedit .ql { font-weight: 600; color: var(--ink); }
+.qedit .step { width: 44px; height: 44px; border-radius: 12px; background: var(--fill); font-size: 22px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
+.qedit .step:disabled { opacity: .4; }
+.qedit .qv { font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: anywhere; flex: 1; }
 .btn { min-height: 44px; padding: 0 16px; border-radius: 12px; background: var(--fill); font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .btn.primary { background: var(--ink); color: var(--on-ink); }
 .btn.danger { color: var(--bad); }
@@ -427,6 +432,7 @@ tr[data-act] { cursor: pointer; }
             '<span class="mac">P ' + G(e.protein) + ' · C ' + G(e.carbs) + ' · G ' + G(e.fat) + '</span>' +
             '<span class="kc">' + K(e.kcal) + '</span></button>' +
             (open ? '<div class="detail">' +
+              '<div class="qedit"><span class="ql">Cantidad</span><button class="step" type="button" data-act="qminus" data-id="' + esc(e.id) + '" aria-label="Menos cantidad">−</button><button class="step" type="button" data-act="qplus" data-id="' + esc(e.id) + '" aria-label="Más cantidad">＋</button><span class="qv">' + esc(e.qty || "1 porción") + '</span></div>' +
               (e.fiber ? '<span>Fibra ' + G(e.fiber) + ' g</span>' : '') +
               (e.src ? '<span>Fuente: ' + esc(e.src) + '</span>' : '') +
               '<div class="acts"><button class="btn danger' + (armed ? ' armed' : '') + '" type="button" data-act="del" data-id="' + esc(e.id) + '">' + (armed ? 'Toca de nuevo para eliminar' : 'Eliminar') + '</button></div></div>' : '');
@@ -611,6 +617,44 @@ tr[data-act] { cursor: pointer; }
   function needDb() { if (!S.db) { toast("Sin conexión a la base de datos"); return false; } return true; }
   function r1(v) { return Math.round(v * 10) / 10; }
 
+  /* cambiar la cantidad de una comida ya registrada: recalcula calorías y macros en proporción */
+  var PLURAL = { rebanada: "rebanadas", unidad: "unidades", "lámina": "láminas", pieza: "piezas", filetito: "filetitos", huevo: "huevos", barra: "barras", "porción": "porciones", presa: "presas", bola: "bolas", cucharada: "cucharadas", taza: "tazas", vaso: "vasos" };
+  var SINGULAR = {}; Object.keys(PLURAL).forEach(function (k) { SINGULAR[PLURAL[k]] = k; });
+  function fmtQ(v) { return nfp.format(Math.round(v * 10) / 10); }
+  function qtyStep(qty, dir) {
+    var q = String(qty || "").trim(), m = /^(\d+(?:[.,]\d+)?)(.*)$/.exec(q), n, rest;
+    if (m) { n = Number(m[1].replace(",", ".")); rest = m[2]; }
+    else { n = 1; rest = q ? " × " + q : " porción"; }
+    if (!(n > 0)) return null;
+    var mass = /^\s*(g|ml|cc)\b/i.test(rest);
+    var step = mass ? 10 : n > 1 ? 1 : 0.5, min = mass ? 10 : 0.5;
+    var nn = Math.round((n + dir * step) * 100) / 100;
+    if (nn < min) return null;
+    var f = nn / n;
+    if (rest.indexOf(" × ") < 0) {
+      rest = rest.replace(/\(([^)]*)\)/g, function (all, inner) {
+        if (/c\/u/.test(inner)) return all;
+        return "(" + inner.replace(/(\d+(?:[.,]\d+)?)(?:(\s*-\s*)(\d+(?:[.,]\d+)?))?(\s*(?:g|ml|porci[oó]n(?:es)?))/g, function (a, n1, dash, n2, unit) { return fmtQ(Number(n1.replace(",", ".")) * f) + (n2 ? dash + fmtQ(Number(n2.replace(",", ".")) * f) : "") + unit; }) + ")";
+      });
+    }
+    rest = rest.replace(/^(\s*)([A-Za-zÁÉÍÓÚáéíóúñ]+)/, function (a, sp, w) {
+      var lw = w.toLowerCase();
+      if (nn === 1 && SINGULAR[lw]) return sp + SINGULAR[lw];
+      if (nn !== 1 && PLURAL[lw]) return sp + PLURAL[lw];
+      return a;
+    });
+    return { f: f, qty: fmtQ(nn) + rest };
+  }
+  function changeQty(id, dir) {
+    var e = S.entries.filter(function (x) { return x.id === id; })[0]; if (!e) return;
+    var r = qtyStep(e.qty, dir);
+    if (!r) { toast(dir < 0 ? "Para quitarlo del todo, usa Eliminar" : "No se pudo cambiar"); return; }
+    if (!needDb()) return;
+    var upd = { qty: r.qty, kcal: r1(num(e.kcal) * r.f), protein: r1(num(e.protein) * r.f), carbs: r1(num(e.carbs) * r.f), fat: r1(num(e.fat) * r.f), fiber: r1(num(e.fiber) * r.f) };
+    Object.assign(e, upd); sched();
+    S.db.doc("entries/" + id).update(upd).catch(function () { toast("No se pudo guardar el cambio"); });
+  }
+
   function addEntry(e) {
     if (!needDb()) return Promise.resolve(false);
     var body = { date: S.date, meal: S.meal, name: e.name, qty: e.qty || "", kcal: Math.round(e.kcal), protein: r1(e.protein), carbs: r1(e.carbs), fat: r1(e.fat), fiber: r1(e.fiber || 0), src: e.src || "", at: new Date().toISOString() };
@@ -642,6 +686,8 @@ tr[data-act] { cursor: pointer; }
       if (!needDb()) return;
       S.db.doc("entries/" + id).delete().then(function () { S.confirm = null; S.open = null; toast("Eliminado"); }, function () { toast("No se pudo eliminar"); });
     }
+    else if (act === "qminus") changeQty(id, -1);
+    else if (act === "qplus") changeQty(id, 1);
     else if (act === "goday") { S.date = el.dataset.date; S.view = "hoy"; S.open = null; window.scrollTo(0, 0); sched(); }
     else if (act === "toggleall") { S.showAll = !S.showAll; renderFoods(); }
     else if (act === "sel") { S.sel = S.sel === el.dataset.date ? null : el.dataset.date; sched(); }
