@@ -122,6 +122,9 @@ h2 { font-family: var(--f-display); font-size: 18px; font-weight: 700; letter-sp
 .mmeal .mt { color: var(--ink2); font-size: 13px; margin-top: 2px; }
 .mmeal ul { margin: 6px 0 0; padding-left: 18px; color: var(--ink2); font-size: 14px; display: flex; flex-direction: column; gap: 2px; }
 .mnote { color: var(--ink2); font-size: 13.5px; }
+.macts { margin-top: 10px; }
+.macts .btn { width: 100%; }
+.macts .btn:disabled { opacity: .7; cursor: default; }
 #menuNotes { display: flex; flex-direction: column; gap: 8px; }
 .pill.today { background: var(--ink); color: var(--on-ink); }
 
@@ -352,7 +355,7 @@ tr[data-act] { cursor: pointer; }
     cfg: Object.assign({}, DEFAULTS),
     entries: [], weights: [], foods: [],
     date: TODAY(), sel: null, selW: null, open: null, confirm: null,
-    meal: guessMeal(), tab: "foods", portions: 1, q: "", view: "hoy", range: 14, showAll: false, menu: null, menuOpen: undefined
+    meal: guessMeal(), tab: "foods", portions: 1, q: "", view: "hoy", range: 14, showAll: false, menu: null, menuOpen: undefined, menuBusy: {}
   };
 
   /* ---------- cálculos ---------- */
@@ -637,14 +640,29 @@ tr[data-act] { cursor: pointer; }
         '<span class="ds">P ' + K(d.protein) + ' g · C ' + K(d.carbs) + ' · G ' + K(d.fat) + ' · fibra ' + K(d.fiber) + '</span>' +
         '<span class="dk">' + K(d.kcal) + ' kcal</span><span class="chev" aria-hidden="true"></span></button>';
       if (!isOpen) return head;
-      return head + '<div class="mbody">' + (d.meals || []).map(function (x) {
+      return head + '<div class="mbody">' + (d.meals || []).map(function (x, j) {
         return '<div class="mmeal"><h4><span>' + esc(x.name) + '</span><small>' + K(x.kcal) + ' kcal · P ' + G(x.protein) + ' g' + (x.fiber ? ' · fibra ' + G(x.fiber) : '') + '</small></h4>' +
           (x.title ? '<div class="mt">' + esc(x.title) + '</div>' : '') +
-          '<ul>' + (x.items || []).map(function (it) { return '<li>' + esc(it) + '</li>'; }).join("") + '</ul></div>';
+          '<ul>' + (x.items || []).map(function (it) { return '<li>' + esc(it) + '</li>'; }).join("") + '</ul>' +
+          (x.entries && x.entries.length ? '<div class="macts"><button class="btn" type="button" data-act="menuadd" data-i="' + i + '" data-j="' + j + '"' + (S.menuBusy[i + "-" + j] ? ' disabled' : '') + '>' + (S.menuBusy[i + "-" + j] ? '✓ Agregado a hoy' : '＋ Agregar esta comida a hoy') + '</button></div>' : '') + '</div>';
       }).join("") + '</div>';
     }).join("");
     var notes = (m.notes || []).map(function (n) { return '<p class="mnote">' + esc(n) + '</p>'; }).join("");
     $("menuNotes").innerHTML = (m.event ? '<div class="eyebrow">Días de evento</div><p class="mnote">' + esc(m.event) + '</p>' : '') + (notes ? '<div class="eyebrow" style="margin-top:6px">Notas</div>' + notes : '');
+  }
+
+  /* agrega a hoy todos los alimentos de una comida del menú */
+  function addMenuMeal(i, j) {
+    var day = S.menu && S.menu.days && S.menu.days[i], m = day && day.meals && day.meals[j], key = i + "-" + j;
+    if (!m || !Array.isArray(m.entries) || !m.entries.length || S.menuBusy[key] || !needDb()) return;
+    S.menuBusy[key] = true; sched();
+    var date = TODAY(), t0 = Date.now(), meal = m.key || "almuerzo";
+    Promise.all(m.entries.map(function (e, k) {
+      return S.db.collection("entries").add({ date: date, meal: meal, name: e.name, qty: e.qty || "", kcal: Math.round(num(e.kcal)), protein: r1(num(e.protein)), carbs: r1(num(e.carbs)), fat: r1(num(e.fat)), fiber: r1(num(e.fiber)), src: "Menú semanal", at: new Date(t0 + k).toISOString() });
+    })).then(function () {
+      toast("Agregado a hoy: " + m.name + " · " + K(m.kcal) + " kcal");
+      setTimeout(function () { delete S.menuBusy[key]; sched(); }, 6000);
+    }, function () { delete S.menuBusy[key]; toast("No se pudo agregar la comida"); sched(); });
   }
 
   function renderFoods() {
@@ -752,6 +770,7 @@ tr[data-act] { cursor: pointer; }
       S.db.doc("entries/" + id).delete().then(function () { S.confirm = null; S.open = null; toast("Eliminado"); }, function () { toast("No se pudo eliminar"); });
     }
     else if (act === "menuday") { var mi = Number(el.dataset.i), cur = S.menuOpen === undefined ? todayIdx() : S.menuOpen; S.menuOpen = cur === mi ? null : mi; sched(); }
+    else if (act === "menuadd") addMenuMeal(Number(el.dataset.i), Number(el.dataset.j));
     else if (act === "qminus") changeQty(id, -1);
     else if (act === "qplus") changeQty(id, 1);
     else if (act === "goday") { S.date = el.dataset.date; S.view = "hoy"; S.open = null; window.scrollTo(0, 0); sched(); }
