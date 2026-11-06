@@ -132,6 +132,7 @@ h2 { font-family: var(--f-display); font-size: 18px; font-weight: 700; letter-sp
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--ink2); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .sw { width: 10px; height: 10px; border-radius: 3px; background: var(--ink); display: inline-block; }
+.sw.warn { background: var(--warn); }
 .sw.bad { background: var(--bad); }
 .sw.dash { width: 14px; height: 0; border-top: 2px dashed var(--muted); border-radius: 0; background: none; }
 .chart { width: 100%; height: auto; display: block; overflow: visible; }
@@ -251,7 +252,7 @@ tr[data-act] { cursor: pointer; }
         <button type="button" data-range="30" aria-pressed="false">30 días</button>
       </div>
       <div id="balance" aria-live="polite"></div>
-      <div class="legend"><span><i class="sw"></i><em id="legOk" style="font-style:normal">Dentro de la meta</em></span><span><i class="sw bad"></i><em id="legBad" style="font-style:normal">Sobre la meta</em></span><span><i class="sw dash"></i>Meta diaria</span></div>
+      <div class="legend"><span><i class="sw"></i><em id="legOk" style="font-style:normal">Dentro de la meta</em></span><span><i class="sw warn"></i><em id="legWarn" style="font-style:normal">Algo sobre la meta</em></span><span><i class="sw bad"></i><em id="legBad" style="font-style:normal">Sobre la meta</em></span><span><i class="sw dash"></i>Meta diaria</span></div>
       <div id="trend"></div>
       <div class="readout" id="readout" aria-live="polite"></div>
       <div class="stats" id="tstats"></div>
@@ -413,9 +414,9 @@ tr[data-act] { cursor: pointer; }
     var list = (idx[S.date] || []).slice().sort(function (a, b) { return String(a.at || "").localeCompare(String(b.at || "")) || String(a.id).localeCompare(String(b.id)); });
     var t = totals(list), c = S.cfg, goal = num(c.kcal) || DEFAULTS.kcal;
     var pct = t.kcal / goal, rem = goal - t.kcal;
-    var tp = tolPct(), lim = 1 + tp / 100;
-    var cls = t.n === 0 ? "" : pct > lim ? "bad" : pct > 1 ? "ok" : pct > 0.9 ? "warn" : "ok";
-    var label = t.n === 0 ? "Sin registros" : pct > lim ? "▲ Sobre la meta" : pct > 1 ? "✓ En la meta (margen +" + nfp.format(tp) + " %)" : pct > 0.9 ? "! Cerca del límite" : "✓ Dentro de la meta";
+    var tp = tolPct(), lim = 1 + tp / 100, lim2 = 1 + 2 * tp / 100;
+    var cls = t.n === 0 ? "" : pct > lim2 ? "bad" : pct > lim ? "warn" : "ok";
+    var label = t.n === 0 ? "Sin registros" : pct > lim2 ? "▲ Sobre la meta" : pct > lim ? "! Algo sobre la meta" : pct > 1 ? "✓ En la meta (margen +" + nfp.format(tp) + " %)" : pct > 0.9 ? "✓ Cerca de la meta" : "✓ Dentro de la meta";
     var big = t.n === 0 ? K(goal) : K(Math.abs(rem));
     var unit = t.n === 0 ? "kcal disponibles" : rem >= 0 ? "kcal restantes" : "kcal sobre la meta";
     $("hero").innerHTML =
@@ -491,9 +492,11 @@ tr[data-act] { cursor: pointer; }
   }
 
   function renderTrend(idx) {
-    var goal = num(S.cfg.kcal) || DEFAULTS.kcal, tp = tolPct(), limit = goal * (1 + tp / 100), today = TODAY(), n = S.range, days = [];
+    var goal = num(S.cfg.kcal) || DEFAULTS.kcal, tp = tolPct(), limit = goal * (1 + tp / 100), limit2 = goal * (1 + 2 * tp / 100), today = TODAY(), n = S.range, days = [];
     $("legOk").textContent = tp > 0 ? "Dentro de la meta (hasta +" + nfp.format(tp) + " %)" : "Dentro de la meta";
-    $("legBad").textContent = tp > 0 ? "Sobre el margen" : "Sobre la meta";
+    $("legWarn").textContent = tp > 0 ? "Algo sobre (+" + nfp.format(tp) + " a +" + nfp.format(2 * tp) + " %)" : "Algo sobre la meta";
+    $("legWarn").parentNode.hidden = tp <= 0;
+    $("legBad").textContent = tp > 0 ? "Muy sobre (más de +" + nfp.format(2 * tp) + " %)" : "Sobre la meta";
     for (var i = n; i >= 1; i--) { var d = addDays(today, -i); days.push({ date: d, t: totals(idx[d] || []) }); }
     $("trendTitle").textContent = "Últimos " + n + " días completos";
     var max = Math.max(goal * 1.18, Math.max.apply(null, days.map(function (x) { return x.t.kcal; })) * 1.06);
@@ -505,7 +508,7 @@ tr[data-act] { cursor: pointer; }
       if (d.date === S.sel) svg += '<rect x="' + x0 + '" y="' + (top - 6) + '" width="' + sw + '" height="' + (ph + 6) + '" rx="4" fill="var(--fill)"/>';
       if (d.t.n) {
         var h = Math.max(2, y(0) - y(d.t.kcal));
-        svg += '<path d="' + topRound(cx - bw / 2, y(0) - h, bw, h, Math.min(4, bw / 2)) + '" fill="' + (d.t.kcal > limit ? "var(--bad)" : "var(--ink)") + '"/>';
+        svg += '<path d="' + topRound(cx - bw / 2, y(0) - h, bw, h, Math.min(4, bw / 2)) + '" fill="' + (d.t.kcal > limit2 ? "var(--bad)" : d.t.kcal > limit ? "var(--warn)" : "var(--ink)") + '"/>';
       } else {
         svg += '<rect x="' + (cx - Math.min(3, bw / 2)) + '" y="' + (y(0) - 2) + '" width="' + Math.min(6, bw) + '" height="2" rx="1" fill="var(--line)"/>';
       }
@@ -542,21 +545,21 @@ tr[data-act] { cursor: pointer; }
       '<div class="stat"><span class="k">Días en la meta</span><span class="v">' + within + ' <small>de ' + done.length + '</small></span></div>' +
       '<div class="stat"><span class="k">Proteína media</span><span class="v">' + (avgP == null ? "—" : G(avgP)) + ' <small>g</small></span></div>';
 
-    var nd = done.length, over = nd - within;
+    var nd = done.length, slight = done.filter(function (d) { return d.t.kcal > limit && d.t.kcal <= limit2; }).length, over = nd - within - slight;
     var net = done.reduce(function (a, d) { return a + (goal - d.t.kcal); }, 0);
     var avgIn = nd ? goal - net / nd : 0;
     if (!nd) {
       $("balance").innerHTML = '<div class="bal"><div class="bal-top"><span class="pill">Sin días completos</span></div><p class="hint">Cuando tengas días registrados en este rango, aquí verás cuántas calorías llevas a favor o en contra de tu meta. Hoy no se cuenta hasta que termine el día.</p></div>';
     } else {
       var tooLow = avgIn < 1200;
-      var cls = tooLow ? "warn" : net >= 0 ? "ok" : (-net <= goal * 0.05 * nd ? "warn" : "bad");
-      var label = tooLow ? "! Muy por debajo" : net >= 0 ? "✓ Buen período" : (cls === "warn" ? "! Casi en meta" : "▲ Sobre la meta");
+      var cls = tooLow ? "warn" : avgIn <= limit ? "ok" : avgIn <= limit2 ? "warn" : "bad";
+      var label = tooLow ? "! Muy por debajo" : avgIn <= goal ? "✓ Buen período" : avgIn <= limit ? "✓ En la meta (margen +" + nfp.format(tp) + " %)" : avgIn <= limit2 ? "! Casi en meta" : "▲ Sobre la meta";
       var avgDiff = Math.round(Math.abs(net / nd));
       var note = tooLow ? " Ojo: comer tan poco puede costarte músculo y energía; vale más cumplir tu meta que quedarte muy abajo." : "";
       $("balance").innerHTML = '<div class="bal ' + cls + '">' +
         '<div class="bal-top"><span class="pill ' + cls + '">' + label + '</span><span class="hint">' + nd + ' de ' + n + ' días con registro (hasta ayer)</span></div>' +
         '<div class="bal-big"><span class="num">' + K(Math.abs(net)) + '</span><span class="unit">kcal ' + (net >= 0 ? "a favor de tu meta" : "en contra de tu meta") + '</span></div>' +
-        '<p class="hint">Promedio: ' + K(avgIn) + ' kcal al día, ' + K(avgDiff) + ' ' + (net >= 0 ? "bajo" : "sobre") + ' tu meta. ' + within + (within === 1 ? ' día' : ' días') + ' dentro de la meta' + (tp > 0 ? ' (con ' + nfp.format(tp) + ' % de margen)' : '') + ' y ' + over + (over === 1 ? ' día' : ' días') + ' sobre.' + note + ' Hoy no se cuenta hasta que termine el día. Los días sin registro tampoco.</p></div>';
+        '<p class="hint">Promedio: ' + K(avgIn) + ' kcal al día, ' + K(avgDiff) + ' ' + (net >= 0 ? "bajo" : "sobre") + ' tu meta. ' + within + (within === 1 ? ' día' : ' días') + ' dentro de la meta' + (tp > 0 ? ' (con ' + nfp.format(tp) + ' % de margen)' : '') + (slight ? ', ' + slight + (slight === 1 ? ' día' : ' días') + ' algo sobre' : '') + (over ? (slight ? ' y ' : ' y ') + over + (over === 1 ? ' día' : ' días') + ' muy sobre' : '') + '.' + note + ' Hoy no se cuenta hasta que termine el día. Los días sin registro tampoco.</p></div>';
     }
 
     var logged = days.filter(function (d) { return d.t.n; }).reverse();
