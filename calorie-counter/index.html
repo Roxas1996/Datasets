@@ -251,7 +251,7 @@ tr[data-act] { cursor: pointer; }
         <button type="button" data-range="30" aria-pressed="false">30 días</button>
       </div>
       <div id="balance" aria-live="polite"></div>
-      <div class="legend"><span><i class="sw"></i>Dentro de la meta</span><span><i class="sw bad"></i>Sobre la meta</span><span><i class="sw dash"></i>Meta diaria</span></div>
+      <div class="legend"><span><i class="sw"></i><em id="legOk" style="font-style:normal">Dentro de la meta</em></span><span><i class="sw bad"></i><em id="legBad" style="font-style:normal">Sobre la meta</em></span><span><i class="sw dash"></i>Meta diaria</span></div>
       <div id="trend"></div>
       <div class="readout" id="readout" aria-live="polite"></div>
       <div class="stats" id="tstats"></div>
@@ -323,7 +323,7 @@ tr[data-act] { cursor: pointer; }
 <script>
 (function () {
   "use strict";
-  var DEFAULTS = { kcal: 1650, protein: 120, carbs: 180, fat: 50, fiber: 25, startWeight: 67.5, goalWeight: 63, weeklyRate: 0.5 };
+  var DEFAULTS = { kcal: 1650, protein: 120, carbs: 180, fat: 50, fiber: 25, startWeight: 67.5, goalWeight: 63, weeklyRate: 0.5, tolerance: 5 };
   var MEALS = [["desayuno", "Desayuno"], ["almuerzo", "Almuerzo"], ["cena", "Cena"], ["snack", "Snack"]];
   var WINDOW_DAYS = 44;
 
@@ -406,12 +406,16 @@ tr[data-act] { cursor: pointer; }
     else b.innerHTML = "";
   }
 
+  /* margen de tolerancia sobre la meta diaria (porcentaje, por defecto 5) */
+  function tolPct() { var v = Number(S.cfg.tolerance); return isFinite(v) && v >= 0 ? v : 5; }
+
   function renderDay(idx) {
     var list = (idx[S.date] || []).slice().sort(function (a, b) { return String(a.at || "").localeCompare(String(b.at || "")) || String(a.id).localeCompare(String(b.id)); });
     var t = totals(list), c = S.cfg, goal = num(c.kcal) || DEFAULTS.kcal;
     var pct = t.kcal / goal, rem = goal - t.kcal;
-    var cls = t.n === 0 ? "" : pct > 1 ? "bad" : pct > 0.9 ? "warn" : "ok";
-    var label = t.n === 0 ? "Sin registros" : pct > 1 ? "▲ Sobre la meta" : pct > 0.9 ? "! Cerca del límite" : "✓ Dentro de la meta";
+    var tp = tolPct(), lim = 1 + tp / 100;
+    var cls = t.n === 0 ? "" : pct > lim ? "bad" : pct > 1 ? "ok" : pct > 0.9 ? "warn" : "ok";
+    var label = t.n === 0 ? "Sin registros" : pct > lim ? "▲ Sobre la meta" : pct > 1 ? "✓ En la meta (margen +" + nfp.format(tp) + " %)" : pct > 0.9 ? "! Cerca del límite" : "✓ Dentro de la meta";
     var big = t.n === 0 ? K(goal) : K(Math.abs(rem));
     var unit = t.n === 0 ? "kcal disponibles" : rem >= 0 ? "kcal restantes" : "kcal sobre la meta";
     $("hero").innerHTML =
@@ -487,7 +491,9 @@ tr[data-act] { cursor: pointer; }
   }
 
   function renderTrend(idx) {
-    var goal = num(S.cfg.kcal) || DEFAULTS.kcal, today = TODAY(), n = S.range, days = [];
+    var goal = num(S.cfg.kcal) || DEFAULTS.kcal, tp = tolPct(), limit = goal * (1 + tp / 100), today = TODAY(), n = S.range, days = [];
+    $("legOk").textContent = tp > 0 ? "Dentro de la meta (hasta +" + nfp.format(tp) + " %)" : "Dentro de la meta";
+    $("legBad").textContent = tp > 0 ? "Sobre el margen" : "Sobre la meta";
     for (var i = n; i >= 1; i--) { var d = addDays(today, -i); days.push({ date: d, t: totals(idx[d] || []) }); }
     $("trendTitle").textContent = "Últimos " + n + " días completos";
     var max = Math.max(goal * 1.18, Math.max.apply(null, days.map(function (x) { return x.t.kcal; })) * 1.06);
@@ -499,7 +505,7 @@ tr[data-act] { cursor: pointer; }
       if (d.date === S.sel) svg += '<rect x="' + x0 + '" y="' + (top - 6) + '" width="' + sw + '" height="' + (ph + 6) + '" rx="4" fill="var(--fill)"/>';
       if (d.t.n) {
         var h = Math.max(2, y(0) - y(d.t.kcal));
-        svg += '<path d="' + topRound(cx - bw / 2, y(0) - h, bw, h, Math.min(4, bw / 2)) + '" fill="' + (d.t.kcal > goal ? "var(--bad)" : "var(--ink)") + '"/>';
+        svg += '<path d="' + topRound(cx - bw / 2, y(0) - h, bw, h, Math.min(4, bw / 2)) + '" fill="' + (d.t.kcal > limit ? "var(--bad)" : "var(--ink)") + '"/>';
       } else {
         svg += '<rect x="' + (cx - Math.min(3, bw / 2)) + '" y="' + (y(0) - 2) + '" width="' + Math.min(6, bw) + '" height="2" rx="1" fill="var(--line)"/>';
       }
@@ -529,7 +535,7 @@ tr[data-act] { cursor: pointer; }
 
     var done = days.filter(function (d) { return d.t.n; });
     var avg = done.length ? done.reduce(function (a, d) { return a + d.t.kcal; }, 0) / done.length : null;
-    var within = done.filter(function (d) { return d.t.kcal <= goal; }).length;
+    var within = done.filter(function (d) { return d.t.kcal <= limit; }).length;
     var avgP = done.length ? done.reduce(function (a, d) { return a + d.t.protein; }, 0) / done.length : null;
     $("tstats").innerHTML =
       '<div class="stat"><span class="k">Promedio (sin hoy)</span><span class="v">' + (avg == null ? "—" : K(avg)) + ' <small>kcal</small></span></div>' +
@@ -550,7 +556,7 @@ tr[data-act] { cursor: pointer; }
       $("balance").innerHTML = '<div class="bal ' + cls + '">' +
         '<div class="bal-top"><span class="pill ' + cls + '">' + label + '</span><span class="hint">' + nd + ' de ' + n + ' días con registro (hasta ayer)</span></div>' +
         '<div class="bal-big"><span class="num">' + K(Math.abs(net)) + '</span><span class="unit">kcal ' + (net >= 0 ? "a favor de tu meta" : "en contra de tu meta") + '</span></div>' +
-        '<p class="hint">Promedio: ' + K(avgIn) + ' kcal al día, ' + K(avgDiff) + ' ' + (net >= 0 ? "bajo" : "sobre") + ' tu meta. ' + within + (within === 1 ? ' día' : ' días') + ' dentro de la meta y ' + over + (over === 1 ? ' día' : ' días') + ' sobre.' + note + ' Hoy no se cuenta hasta que termine el día. Los días sin registro tampoco.</p></div>';
+        '<p class="hint">Promedio: ' + K(avgIn) + ' kcal al día, ' + K(avgDiff) + ' ' + (net >= 0 ? "bajo" : "sobre") + ' tu meta. ' + within + (within === 1 ? ' día' : ' días') + ' dentro de la meta' + (tp > 0 ? ' (con ' + nfp.format(tp) + ' % de margen)' : '') + ' y ' + over + (over === 1 ? ' día' : ' días') + ' sobre.' + note + ' Hoy no se cuenta hasta que termine el día. Los días sin registro tampoco.</p></div>';
     }
 
     var logged = days.filter(function (d) { return d.t.n; }).reverse();
