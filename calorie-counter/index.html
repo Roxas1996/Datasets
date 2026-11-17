@@ -675,11 +675,14 @@ tr[data-act] { cursor: pointer; }
   }
 
   function renderFoods() {
-    var q = S.q.trim().toLowerCase(), m = S.portions;
+    var q = S.q.trim(), m = S.portions;
     var label = MEALS.filter(function (x) { return x[0] === S.meal; })[0][1];
     var filterOn = !q && !S.showAll;
     var pool = filterOn ? S.foods.filter(function (f) { return !f.meals || f.meals.indexOf(S.meal) >= 0; }) : S.foods;
-    var foods = pool.filter(function (f) { return !q || String(f.name).toLowerCase().indexOf(q) >= 0; });
+    /* búsqueda sin tildes ni mayúsculas y por palabras sueltas: "jamon pavo" encuentra "Jamón pechuga de pavo" */
+    var fold = function (s) { return String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); };
+    var words = fold(q).split(/\s+/).filter(Boolean);
+    var foods = pool.filter(function (f) { var nm = fold(f.name); return words.every(function (w) { return nm.indexOf(w) >= 0; }); });
     var note;
     if (q) note = "Buscando en todos tus alimentos.";
     else if (S.showAll) note = 'Mostrando todos tus alimentos. <button type="button" class="ghost" data-act="toggleall">Solo los de ' + label + '</button>';
